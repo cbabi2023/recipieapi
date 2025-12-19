@@ -12,8 +12,10 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => RecipeProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => RecipeProvider()),
+      ],
       child: MaterialApp(
         title: 'Food Recipes',
         debugShowCheckedModeBanner: false,

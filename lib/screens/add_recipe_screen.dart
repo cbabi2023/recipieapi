@@ -1,7 +1,11 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:path/path.dart' as path;
 import '../models/recipe.dart';
 import '../providers/recipe_provider.dart';
+import '../services/image_service.dart';
 
 class AddRecipeScreen extends StatefulWidget {
   const AddRecipeScreen({super.key});
@@ -14,12 +18,15 @@ class _AddRecipeScreenState extends State<AddRecipeScreen>
     with SingleTickerProviderStateMixin {
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
-  final _imageController = TextEditingController();
+  final _imageUrlController = TextEditingController();
   final _ratingController = TextEditingController(text: '3.0');
   final _timeController = TextEditingController();
   final _descriptionController = TextEditingController();
+  final ImagePicker _imagePicker = ImagePicker();
 
+  File? _selectedImage;
   bool _isLoading = false;
+  bool _useImagePicker = true; // Toggle between image picker and URL
   late AnimationController _animationController;
   late Animation<double> _fadeAnimation;
 
@@ -43,51 +50,213 @@ class _AddRecipeScreenState extends State<AddRecipeScreen>
   void dispose() {
     _animationController.dispose();
     _titleController.dispose();
-    _imageController.dispose();
+    _imageUrlController.dispose();
     _ratingController.dispose();
     _timeController.dispose();
     _descriptionController.dispose();
     super.dispose();
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? image = await _imagePicker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1920,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+          _useImagePicker = true;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error picking image: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _showImageSourceDialog() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Select Image Source',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                _buildImageSourceOption(
+                  icon: Icons.camera_alt_rounded,
+                  label: 'Camera',
+                  color: Colors.blue,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.camera);
+                  },
+                ),
+                _buildImageSourceOption(
+                  icon: Icons.photo_library_rounded,
+                  label: 'Gallery',
+                  color: Colors.green,
+                  onTap: () {
+                    Navigator.pop(context);
+                    _pickImage(ImageSource.gallery);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            TextButton(
+              onPressed: () {
+                setState(() {
+                  _selectedImage = null;
+                  _useImagePicker = false;
+                });
+                Navigator.pop(context);
+              },
+              child: const Text('Use URL Instead'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageSourceOption({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.3)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: color, size: 40),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: TextStyle(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _saveRecipe() async {
     if (_formKey.currentState!.validate()) {
+      // Validate image
+      if (_useImagePicker && _selectedImage == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please select an image'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+      if (!_useImagePicker && _imageUrlController.text.trim().isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter an image URL or select an image'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       setState(() {
         _isLoading = true;
       });
 
+      // Capture context-dependent objects before async operations
+      final provider = Provider.of<RecipeProvider>(context, listen: false);
+      final navigator = Navigator.of(context);
+      final messenger = ScaffoldMessenger.of(context);
+
       try {
+        String imagePath = '';
+        
+        if (_useImagePicker && _selectedImage != null) {
+          // Save image file and get path
+          final fileName = 'recipe_${DateTime.now().millisecondsSinceEpoch}${path.extension(_selectedImage!.path)}';
+          imagePath = await ImageService.saveImageFile(_selectedImage!, fileName);
+        } else {
+          imagePath = _imageUrlController.text.trim();
+        }
+
         final recipe = Recipe(
           title: _titleController.text.trim(),
-          image: _imageController.text.trim(),
+          image: imagePath,
           rating: double.tryParse(_ratingController.text) ?? 3.0,
           time: _timeController.text.trim(),
           description: _descriptionController.text.trim(),
           source: 'LOCAL',
         );
 
-        final provider = Provider.of<RecipeProvider>(context, listen: false);
         await provider.addRecipe(recipe);
 
-        if (mounted) {
-          Navigator.pop(context);
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text('Recipe added successfully!'),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
-              ),
+        if (!mounted) return;
+        navigator.pop();
+        messenger.showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Recipe added successfully!'),
+              ],
             ),
-          );
-        }
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -163,7 +332,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen>
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        Colors.deepOrange.withOpacity(0.1),
+                        Colors.deepOrange.withValues(alpha: 0.1),
                         Colors.white,
                       ],
                     ),
@@ -174,7 +343,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen>
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.deepOrange.withOpacity(0.2),
+                          color: Colors.deepOrange.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: const Icon(
@@ -211,18 +380,8 @@ class _AddRecipeScreenState extends State<AddRecipeScreen>
                   },
                 ),
                 const SizedBox(height: 20),
-                // Image URL Field
-                _buildTextField(
-                  controller: _imageController,
-                  label: 'Image URL',
-                  icon: Icons.image_rounded,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter an image URL';
-                    }
-                    return null;
-                  },
-                ),
+                // Image Picker Section
+                _buildImagePickerSection(screenWidth),
                 const SizedBox(height: 20),
                 // Rating and Time Row
                 Row(
@@ -276,7 +435,7 @@ class _AddRecipeScreenState extends State<AddRecipeScreen>
                     borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.deepOrange.withOpacity(0.3),
+                        color: Colors.deepOrange.withValues(alpha: 0.3),
                         blurRadius: 8,
                         offset: const Offset(0, 4),
                       ),
@@ -318,6 +477,137 @@ class _AddRecipeScreenState extends State<AddRecipeScreen>
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildImagePickerSection(double screenWidth) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Recipe Image',
+          style: TextStyle(
+            fontSize: (screenWidth * 0.035).clamp(14.0, 16.0),
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Image Preview or Picker Button
+        if (_useImagePicker && _selectedImage != null)
+          Stack(
+            children: [
+              Container(
+                height: 200,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey[300]!),
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Image.file(
+                    _selectedImage!,
+                    fit: BoxFit.cover,
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: IconButton(
+                  icon: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, color: Colors.white, size: 20),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _selectedImage = null;
+                    });
+                  },
+                ),
+              ),
+            ],
+          )
+        else
+          Container(
+            height: 200,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.grey[300]!),
+            ),
+            child: InkWell(
+              onTap: _showImageSourceDialog,
+              borderRadius: BorderRadius.circular(16),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.add_photo_alternate_rounded,
+                    size: 48,
+                    color: Colors.grey[400],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Tap to add image',
+                    style: TextStyle(
+                      color: Colors.grey[600],
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Camera or Gallery',
+                    style: TextStyle(
+                      color: Colors.grey[500],
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (!_useImagePicker) ...[
+          const SizedBox(height: 12),
+          _buildTextField(
+            controller: _imageUrlController,
+            label: 'Image URL',
+            icon: Icons.link_rounded,
+            validator: (value) {
+              if (value == null || value.trim().isEmpty) {
+                return 'Please enter an image URL';
+              }
+              return null;
+            },
+          ),
+        ],
+        if (_useImagePicker && _selectedImage == null) ...[
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _showImageSourceDialog,
+                  icon: const Icon(Icons.camera_alt_rounded),
+                  label: const Text('Choose Image'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 

@@ -27,13 +27,17 @@ class _RecipeListScreenState extends State<RecipeListScreen>
     _fabAnimationController.forward();
 
     // Hide/show FAB on scroll
+    double lastScrollOffset = 0;
     _scrollController.addListener(() {
-      if (_scrollController.position.userScrollDirection ==
-          ScrollDirection.reverse) {
+      final currentOffset = _scrollController.offset;
+      if (currentOffset > lastScrollOffset && currentOffset > 100) {
+        // Scrolling down
         _fabAnimationController.reverse();
-      } else {
+      } else if (currentOffset < lastScrollOffset) {
+        // Scrolling up
         _fabAnimationController.forward();
       }
+      lastScrollOffset = currentOffset;
     });
   }
 
@@ -52,20 +56,25 @@ class _RecipeListScreenState extends State<RecipeListScreen>
     
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
-      body: NotificationListener<ScrollNotification>(
-        onNotification: (ScrollNotification notification) {
-          if (notification is ScrollUpdateNotification) {
-            final metrics = notification.metrics;
-            if (metrics.pixels >= metrics.maxScrollExtent * 0.8) {
-              final provider = Provider.of<RecipeProvider>(context, listen: false);
-              if (!provider.isLoadingMore && provider.hasMore) {
-                provider.loadMoreRecipes();
+      body: RefreshIndicator(
+        onRefresh: () async {
+          final provider = Provider.of<RecipeProvider>(context, listen: false);
+          await provider.refreshRecipes(); // This resets to "all"
+        },
+        child: NotificationListener<ScrollNotification>(
+          onNotification: (ScrollNotification notification) {
+            if (notification is ScrollUpdateNotification) {
+              final metrics = notification.metrics;
+              if (metrics.pixels >= metrics.maxScrollExtent * 0.8) {
+                final provider = Provider.of<RecipeProvider>(context, listen: false);
+                if (!provider.isLoadingMore && provider.hasMore) {
+                  provider.loadMoreRecipes();
+                }
               }
             }
-          }
-          return false;
-        },
-        child: CustomScrollView(
+            return false;
+          },
+          child: CustomScrollView(
           controller: _scrollController,
           physics: const BouncingScrollPhysics(),
           slivers: [
@@ -76,6 +85,7 @@ class _RecipeListScreenState extends State<RecipeListScreen>
             pinned: true,
             backgroundColor: Colors.white,
             elevation: 0,
+            actions: [],
             flexibleSpace: FlexibleSpaceBar(
               titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
               title: Row(
@@ -83,7 +93,7 @@ class _RecipeListScreenState extends State<RecipeListScreen>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.deepOrange.withOpacity(0.1),
+                      color: Colors.deepOrange.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Icon(
@@ -110,13 +120,53 @@ class _RecipeListScreenState extends State<RecipeListScreen>
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                     colors: [
-                      Colors.deepOrange.withOpacity(0.1),
+                      Colors.deepOrange.withValues(alpha: 0.1),
                       Colors.white,
                     ],
                   ),
                 ),
               ),
             ),
+          ),
+          // Category Chips
+          Consumer<RecipeProvider>(
+            builder: (context, provider, child) {
+              if (provider.categories.isEmpty) {
+                return const SliverToBoxAdapter(child: SizedBox.shrink());
+              }
+              
+              return SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        // "All" category chip
+                        _buildCategoryChip(
+                          label: 'All',
+                          isSelected: provider.selectedCategory == 'all',
+                          onTap: () => provider.selectCategory('all'),
+                        ),
+                        const SizedBox(width: 8),
+                        // Other category chips
+                        ...provider.categories.map((category) {
+                          final displayName = _formatCategoryName(category);
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: _buildCategoryChip(
+                              label: displayName,
+                              isSelected: provider.selectedCategory == category,
+                              onTap: () => provider.selectCategory(category),
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
           ),
           // Recipe List
           Consumer<RecipeProvider>(
@@ -157,7 +207,7 @@ class _RecipeListScreenState extends State<RecipeListScreen>
                           Container(
                             padding: const EdgeInsets.all(20),
                             decoration: BoxDecoration(
-                              color: Colors.red.withOpacity(0.1),
+                              color: Colors.red.withValues(alpha: 0.1),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -302,6 +352,7 @@ class _RecipeListScreenState extends State<RecipeListScreen>
             },
           ),
         ],
+          ),
         ),
       ),
       floatingActionButton: Consumer<RecipeProvider>(
@@ -315,6 +366,7 @@ class _RecipeListScreenState extends State<RecipeListScreen>
             ),
             child: FloatingActionButton.extended(
               onPressed: () {
+                final provider = Provider.of<RecipeProvider>(context, listen: false);
                 Navigator.push(
                   context,
                   PageRouteBuilder(
@@ -334,8 +386,9 @@ class _RecipeListScreenState extends State<RecipeListScreen>
                   ),
                 ).then((_) {
                   // Refresh list when returning from add screen
-                  Provider.of<RecipeProvider>(context, listen: false)
-                      .refreshRecipes();
+                  if (mounted) {
+                    provider.refreshRecipes();
+                  }
                 });
               },
               backgroundColor: Colors.deepOrange,
@@ -353,5 +406,47 @@ class _RecipeListScreenState extends State<RecipeListScreen>
         },
       ),
     );
+  }
+
+  Widget _buildCategoryChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return FilterChip(
+      label: Text(
+        label,
+        style: TextStyle(
+          color: isSelected ? Colors.white : Colors.black87,
+          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        ),
+      ),
+      selected: isSelected,
+      onSelected: (_) => onTap(),
+      backgroundColor: Colors.grey[200],
+      selectedColor: Colors.deepOrange,
+      checkmarkColor: Colors.white,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: isSelected ? Colors.deepOrange : Colors.grey[300]!,
+          width: isSelected ? 2 : 1,
+        ),
+      ),
+    );
+  }
+
+  String _formatCategoryName(String category) {
+    // Format category name for display
+    String formatted = category.replaceAll("'", "'");
+    // Capitalize first letter of each word
+    List<String> words = formatted.split(' ');
+    for (int i = 0; i < words.length; i++) {
+      if (words[i].isNotEmpty) {
+        words[i] = words[i][0].toUpperCase() + words[i].substring(1);
+      }
+    }
+    return words.join(' ');
   }
 }

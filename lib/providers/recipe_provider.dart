@@ -6,6 +6,8 @@ class RecipeProvider with ChangeNotifier {
   final RecipeRepository _repository = RecipeRepository();
   
   List<Recipe> _recipes = [];
+  List<String> _categories = [];
+  String _selectedCategory = 'all';
   bool _isLoading = false;
   bool _isLoadingMore = false;
   bool _hasMore = true;
@@ -13,17 +15,42 @@ class RecipeProvider with ChangeNotifier {
   String? _error;
 
   List<Recipe> get recipes => _recipes;
+  List<String> get categories => _categories;
+  String get selectedCategory => _selectedCategory;
   bool get isLoading => _isLoading;
   bool get isLoadingMore => _isLoadingMore;
   bool get hasMore => _hasMore;
   String? get error => _error;
 
   RecipeProvider() {
+    loadCategories();
     loadRecipes();
   }
 
-  Future<void> loadRecipes({bool refresh = false}) async {
+  Future<void> loadCategories() async {
+    try {
+      _categories = await _repository.getCategories();
+      notifyListeners();
+    } catch (e) {
+      // If categories fail to load, use default categories
+      _categories = ['electronics', "men's clothing", "women's clothing", 'jewelery'];
+      notifyListeners();
+    }
+  }
+
+  Future<void> loadRecipes({bool refresh = false, String? category}) async {
     if (refresh) {
+      _currentPage = 1;
+      _recipes.clear();
+      _hasMore = true;
+      // Reset to "all" on refresh
+      if (category == null) {
+        _selectedCategory = 'all';
+      } else {
+        _selectedCategory = category;
+      }
+    } else if (category != null) {
+      _selectedCategory = category;
       _currentPage = 1;
       _recipes.clear();
       _hasMore = true;
@@ -37,9 +64,10 @@ class RecipeProvider with ChangeNotifier {
       final result = await _repository.getRecipes(
         page: _currentPage,
         loadMore: false,
+        category: _selectedCategory == 'all' ? null : _selectedCategory,
       );
       
-      if (refresh) {
+      if (refresh || category != null) {
         _recipes = result['recipes'] as List<Recipe>;
       } else {
         _recipes.addAll(result['recipes'] as List<Recipe>);
@@ -59,6 +87,12 @@ class RecipeProvider with ChangeNotifier {
     }
   }
 
+  void selectCategory(String category) {
+    if (_selectedCategory != category) {
+      loadRecipes(category: category);
+    }
+  }
+
   Future<void> loadMoreRecipes() async {
     if (_isLoadingMore || !_hasMore) return;
 
@@ -67,12 +101,15 @@ class RecipeProvider with ChangeNotifier {
 
     try {
       final nextPage = _currentPage + 1;
-      final moreRecipes = await _repository.loadMoreRecipes(_currentPage);
+      final moreRecipes = await _repository.loadMoreRecipes(
+        _currentPage,
+        category: _selectedCategory == 'all' ? null : _selectedCategory,
+      );
       
       if (moreRecipes.isNotEmpty) {
         _recipes.addAll(moreRecipes);
         _currentPage = nextPage;
-        _hasMore = moreRecipes.length >= _repository.pageSize;
+        _hasMore = moreRecipes.length >= RecipeRepository.pageSize;
       } else {
         _hasMore = false;
       }
@@ -121,6 +158,7 @@ class RecipeProvider with ChangeNotifier {
   }
 
   Future<void> refreshRecipes() async {
+    // Reset to "all" category on refresh
     await loadRecipes(refresh: true);
   }
 }

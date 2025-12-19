@@ -34,7 +34,8 @@ class DatabaseService {
         rating REAL NOT NULL DEFAULT 3.0,
         time TEXT NOT NULL,
         description TEXT,
-        source TEXT NOT NULL DEFAULT 'LOCAL'
+        source TEXT NOT NULL DEFAULT 'LOCAL',
+        category TEXT
       )
     ''');
   }

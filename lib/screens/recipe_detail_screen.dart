@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/recipe.dart';
 import '../providers/recipe_provider.dart';
+import '../services/image_service.dart';
 
 class RecipeDetailScreen extends StatefulWidget {
   final Recipe recipe;
@@ -74,7 +76,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
             leading: Container(
               margin: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.3),
+                color: Colors.black.withValues(alpha: 0.3),
                 shape: BoxShape.circle,
               ),
               child: IconButton(
@@ -87,7 +89,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
                 Container(
                   margin: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     shape: BoxShape.circle,
                   ),
                   child: IconButton(
@@ -102,44 +104,66 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    CachedNetworkImage(
-                      imageUrl: widget.recipe.image,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Colors.grey[300]!,
-                              Colors.grey[400]!,
-                            ],
+                    ImageService.isLocalPath(widget.recipe.image)
+                        ? Image.file(
+                            File(widget.recipe.image),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.grey[300]!,
+                                    Colors.grey[400]!,
+                                  ],
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.broken_image,
+                                color: Colors.white,
+                                size: 50,
+                              ),
+                            ),
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: widget.recipe.image,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.grey[300]!,
+                                    Colors.grey[400]!,
+                                  ],
+                                ),
+                              ),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.grey[300]!,
+                                    Colors.grey[400]!,
+                                  ],
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.broken_image,
+                                color: Colors.white,
+                                size: 50,
+                              ),
+                            ),
                           ),
-                        ),
-                        child: const Center(
-                          child: CircularProgressIndicator(
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                          ),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Colors.grey[300]!,
-                              Colors.grey[400]!,
-                            ],
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.broken_image,
-                          color: Colors.white,
-                          size: 50,
-                        ),
-                      ),
-                    ),
                     // Gradient overlay
                     Container(
                       decoration: BoxDecoration(
@@ -148,7 +172,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
                           end: Alignment.bottomCenter,
                           colors: [
                             Colors.transparent,
-                            Colors.black.withOpacity(0.3),
+                            Colors.black.withValues(alpha: 0.3),
                           ],
                         ),
                       ),
@@ -214,10 +238,10 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: Colors.green.withOpacity(0.1),
+              color: Colors.green.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: Colors.green.withOpacity(0.3),
+                color: Colors.green.withValues(alpha: 0.3),
                 width: 1,
               ),
             ),
@@ -255,7 +279,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
             iconColor: Colors.amber,
             label: 'Rating',
             value: widget.recipe.rating.toStringAsFixed(1),
-            backgroundColor: Colors.amber.withOpacity(0.1),
+            backgroundColor: Colors.amber.withValues(alpha: 0.1),
             screenWidth: screenWidth,
           ),
         ),
@@ -266,7 +290,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
             iconColor: Colors.blue,
             label: 'Time',
             value: widget.recipe.time,
-            backgroundColor: Colors.blue.withOpacity(0.1),
+            backgroundColor: Colors.blue.withValues(alpha: 0.1),
             screenWidth: screenWidth,
           ),
         ),
@@ -288,7 +312,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
         color: backgroundColor,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: iconColor.withOpacity(0.2),
+          color: iconColor.withValues(alpha: 0.2),
           width: 1,
         ),
       ),
@@ -298,7 +322,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.2),
+              color: iconColor.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Icon(
@@ -339,7 +363,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.deepOrange.withOpacity(0.1),
+                color: Colors.deepOrange.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -394,7 +418,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.red.withOpacity(0.3),
+                color: Colors.red.withValues(alpha: 0.3),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
               ),
@@ -448,7 +472,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.red.withOpacity(0.1),
+                  color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.delete_rounded, color: Colors.red),
@@ -470,7 +494,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
               leading: Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.grey.withOpacity(0.1),
+                  color: Colors.grey.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: const Icon(Icons.close_rounded, color: Colors.grey),
@@ -503,7 +527,7 @@ class _RecipeDetailScreenState extends State<RecipeDetailScreen>
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: Colors.red.withValues(alpha: 0.1),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(

@@ -6,6 +6,7 @@ class Recipe {
   final String time;
   final String? description;
   final String source; // 'API' or 'LOCAL'
+  final String? category; // Product category
 
   Recipe({
     this.id,
@@ -15,6 +16,7 @@ class Recipe {
     required this.time,
     this.description,
     this.source = 'LOCAL',
+    this.category,
   });
 
   // Convert Recipe to Map for database
@@ -27,6 +29,7 @@ class Recipe {
       'time': time,
       'description': description ?? '',
       'source': source,
+      'category': category ?? '',
     };
   }
 
@@ -40,6 +43,7 @@ class Recipe {
       time: map['time'] as String,
       description: map['description'] as String?,
       source: map['source'] as String? ?? 'LOCAL',
+      category: map['category'] as String?,
     );
   }
 
@@ -61,6 +65,7 @@ class Recipe {
       time: time,
       description: json['description'] as String?,
       source: 'API',
+      category: json['category'] as String?,
     );
   }
 
@@ -73,6 +78,7 @@ class Recipe {
     String? time,
     String? description,
     String? source,
+    String? category,
   }) {
     return Recipe(
       id: id ?? this.id,
@@ -82,6 +88,7 @@ class Recipe {
       time: time ?? this.time,
       description: description ?? this.description,
       source: source ?? this.source,
+      category: category ?? this.category,
     );
   }
 }

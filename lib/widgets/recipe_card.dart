@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/recipe.dart';
+import '../services/image_service.dart';
 
 class RecipeCard extends StatefulWidget {
   final Recipe recipe;
@@ -96,7 +98,7 @@ class _RecipeCardState extends State<RecipeCard>
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.15),
+                  color: Colors.black.withValues(alpha: 0.15),
                   blurRadius: 12,
                   offset: const Offset(0, 6),
                   spreadRadius: 0,
@@ -111,47 +113,69 @@ class _RecipeCardState extends State<RecipeCard>
                   // Recipe Image with Hero animation
                   Hero(
                     tag: 'recipe_image_${widget.recipe.id}',
-                    child: CachedNetworkImage(
-                      imageUrl: widget.recipe.image,
-                      fit: BoxFit.cover,
-                      placeholder: (context, url) => Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Colors.grey[300]!,
-                              Colors.grey[400]!,
-                            ],
-                          ),
-                        ),
-                        child: const Center(
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Colors.white,
+                    child: ImageService.isLocalPath(widget.recipe.image)
+                        ? Image.file(
+                            File(widget.recipe.image),
+                            fit: BoxFit.cover,
+                            errorBuilder: (context, error, stackTrace) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.grey[300]!,
+                                    Colors.grey[400]!,
+                                  ],
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.broken_image,
+                                color: Colors.white,
+                                size: 40,
+                              ),
+                            ),
+                          )
+                        : CachedNetworkImage(
+                            imageUrl: widget.recipe.image,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.grey[300]!,
+                                    Colors.grey[400]!,
+                                  ],
+                                ),
+                              ),
+                              child: const Center(
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [
+                                    Colors.grey[300]!,
+                                    Colors.grey[400]!,
+                                  ],
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.broken_image,
+                                color: Colors.white,
+                                size: 40,
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Colors.grey[300]!,
-                              Colors.grey[400]!,
-                            ],
-                          ),
-                        ),
-                        child: const Icon(
-                          Icons.broken_image,
-                          color: Colors.white,
-                          size: 40,
-                        ),
-                      ),
-                    ),
                   ),
                   // Gradient Overlay with better design
                   Container(
@@ -162,8 +186,8 @@ class _RecipeCardState extends State<RecipeCard>
                         stops: const [0.0, 0.3, 1.0],
                         colors: [
                           Colors.transparent,
-                          Colors.black.withOpacity(0.3),
-                          Colors.black.withOpacity(0.85),
+                          Colors.black.withValues(alpha: 0.3),
+                          Colors.black.withValues(alpha: 0.85),
                         ],
                       ),
                     ),
@@ -204,7 +228,7 @@ class _RecipeCardState extends State<RecipeCard>
                                 iconColor: Colors.amber,
                                 text: widget.recipe.rating.toStringAsFixed(1),
                                 screenWidth: screenWidth,
-                                backgroundColor: Colors.amber.withOpacity(0.2),
+                                backgroundColor: Colors.amber.withValues(alpha: 0.2),
                               ),
                               const SizedBox(width: 10),
                               _buildBadge(
@@ -212,7 +236,7 @@ class _RecipeCardState extends State<RecipeCard>
                                 iconColor: Colors.white,
                                 text: widget.recipe.time,
                                 screenWidth: screenWidth,
-                                backgroundColor: Colors.white.withOpacity(0.2),
+                                backgroundColor: Colors.white.withValues(alpha: 0.2),
                               ),
                               if (widget.recipe.source == 'LOCAL') ...[
                                 const Spacer(),
@@ -222,10 +246,10 @@ class _RecipeCardState extends State<RecipeCard>
                                     vertical: 4,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.green.withOpacity(0.3),
+                                    color: Colors.green.withValues(alpha: 0.3),
                                     borderRadius: BorderRadius.circular(8),
                                     border: Border.all(
-                                      color: Colors.green.withOpacity(0.5),
+                                      color: Colors.green.withValues(alpha: 0.5),
                                       width: 1,
                                     ),
                                   ),
@@ -287,7 +311,7 @@ class _RecipeCardState extends State<RecipeCard>
         color: backgroundColor,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Colors.white.withOpacity(0.3),
+          color: Colors.white.withValues(alpha: 0.3),
           width: 1,
         ),
       ),
